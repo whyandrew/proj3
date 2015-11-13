@@ -506,6 +506,24 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
         *****************************************************************************/
         fprintf(stderr,"Just trackin'!\n");	// bot, opponent, and ball.
         track_agents(ai,blobs);		// Currently, does nothing but endlessly track
+        switch(ai->st.state)
+        {
+            case 101:
+                penalty_start(ai, blobs, state);
+                break;
+            case 102:
+                penalty_align(ai, blobs, state);
+                break;
+            case 103:
+                penalty_approach(ai, blobs, state);
+                break;
+            case 104:
+                penalty_kick(ai, blobs, state);
+                break;
+            case 105:
+                break; // Final penalty state, nothing to do
+                
+        }
     }
 
 }
@@ -524,3 +542,53 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
  there.
 **********************************************************************************/
 
+
+
+void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          Penalty: initial state
+//
+// Wait until we know where our bot and the ball are, then progress to the
+// alignment stage.  
+//////////////////////////////////////////////////////////////////////////////
+    if(ai->st.selfID && ai->st.ballID) // Know where self and ball are
+    {
+        ai->st.state = 102; // Progress to alignment stage
+    }
+}
+
+void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          Penalty: alignment state
+//
+// Travel to a short distance behind the ball, arriving in line with a goal shot.
+//////////////////////////////////////////////////////////////////////////////
+
+    if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
+    {
+        ai->st.state = 101; // Return to initial stage until ball and self found
+        return;
+    }
+    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
+    double goal_loc[2]; // Coordinates of opponent's goal
+    // TODO: figure out what coordinated of goal should be.
+    
+}
+
+void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          Penalty: approach state
+//
+//  Move straight towards the ball until close enough to kick.
+//////////////////////////////////////////////////////////////////////////////
+
+    ;
+}
+
+void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+    ;
+}
