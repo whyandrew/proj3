@@ -573,7 +573,12 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     }
     double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
     double goal_loc[2]; // Coordinates of opponent's goal
-    // TODO: figure out what coordinated of goal should be.
+    //unsigned long tacholimit;
+    //signed char power, ratio;
+    //_set_output_state(OUT_AC, power, MODE_REGULATED,  REGULATION_MODE_MOTOR_SYNC,
+    //ratio, MOTOR_RUN_STATE_RUNNING, unsigned long tacholimit) {
+
+    // TODO: figure out what coordinates of goal should be.
     
 }
 
