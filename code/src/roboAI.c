@@ -469,7 +469,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
      ** Do not change the behaviour of the robot ID routine **
     **************************************************************************/
-
+    fprintf(stderr,"State %d\n", ai->st.state);
     if (ai->st.state==0||ai->st.state==100||ai->st.state==200)  	// Initial set up - find own, ball, and opponent blobs
     {
         // Carry out self id process.
@@ -504,7 +504,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
          state transitions and with calling the appropriate function based on what
          the bot is supposed to be doing.
         *****************************************************************************/
-        fprintf(stderr,"Just trackin'!\n");	// bot, opponent, and ball.
+        fprintf(stderr,"Just trackin'! State %d\n", ai->st.state);	// bot, opponent, and ball.
         track_agents(ai,blobs);		// Currently, does nothing but endlessly track
         switch(ai->st.state)
         {
@@ -542,6 +542,22 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
  there.
 **********************************************************************************/
 
+double find_distance(double *point_1, double *point_2)
+{
+    return pow(pow(point_2[0] - point_1[0], 2) + 
+               pow(point_2[1] - point_1[1], 2), 0.5);
+}
+
+void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
+{
+    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
+    // Coordinates of opponent's goal
+    double goal_loc[2] = {(ai->st.side == 0) ? 1024.0 : 0.0, 384};
+    double ball_to_goal_dist = find_distance(ball_loc, goal_loc);
+
+    result[0] = ball_loc[0] - bot_to_ball_dist * (goal_loc[0]-ball_loc[0]);
+    result[1] = ball_loc[1] - bot_to_ball_dist * (goal_loc[1]-ball_loc[1]);
+}
 
 
 void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
@@ -571,14 +587,16 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
-    double goal_loc[2]; // Coordinates of opponent's goal
-    //unsigned long tacholimit;
-    //signed char power, ratio;
-    //_set_output_state(OUT_AC, power, MODE_REGULATED,  REGULATION_MODE_MOTOR_SYNC,
-    //ratio, MOTOR_RUN_STATE_RUNNING, unsigned long tacholimit) {
+    unsigned long tacholimit = 0; // ?
+    signed char power=30;
+    signed char ratio=50; // TODO: calculate this value (using PID?)
 
-    // TODO: figure out what coordinates of goal should be.
+    double rally_point[2];
+    get_rally_point(ai, 10.0, rally_point);
+
+    _set_output_state(OUT_AC, power, MODE_REGULATED,
+                      REGULATION_MODE_MOTOR_SYNC, ratio,
+                      MOTOR_RUN_STATE_RUNNING, tacholimit);
     
 }
 
@@ -597,3 +615,4 @@ void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
 {
     ;
 }
+
