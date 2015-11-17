@@ -640,16 +640,16 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
 }
 
 
-void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
+void get_rally_point(struct RoboAI *ai, double *result)
 {
-    const double distance_back = 1.0;
+    const double distance_back = 40.0;
     double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
     // Coordinates of opponent's goal
     double goal_loc[2] = {(ai->st.side == 0) ? 1024.0 : 0.0, 384};
     double ball_to_goal_dist = find_distance(ball_loc, goal_loc);
 
-    result[0] = (ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / bot_to_ball_dist )- 100;
-    result[1] = ball_loc[1] - distance_back * (goal_loc[1]-ball_loc[1]) / bot_to_ball_dist;
+    result[0] = ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / ball_to_goal_dist;
+    result[1] = ball_loc[1] - distance_back * (goal_loc[1]-ball_loc[1]) / ball_to_goal_dist;
 }
 
 
@@ -681,19 +681,22 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    unsigned long tacholimit = 0; // ?
-    signed char power=30;
-    signed char ratio=50; // TODO: calculate this value (using PID?)
-/*
-    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
+
+    double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
-    double ball_to_goal[2] = {goal_loc[0] - ball_loc[0],
-                              goal_loc[1] - ball_loc[1]};
-    double ball_to_goal_dist = pow(ball_to_goal[0], 2)s
-                             + pow(ball_to_goal[1], 2);
-                             */
     double rally_point[2];
-    get_rally_point(ai, 10.0, rally_point);
+    get_rally_point(ai, rally_point);
+    double angle_error;
+    if (true) // TODO: check if magnitude of velocity is greater than some threshold
+    {
+      double actual_angle = atan2(ai->st.smy, ai->st.smx);
+      angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
+    }
+    else
+    { // Robot not moving so heading info inaccurate, no correction
+      angle_error = 0;
+    }
+    
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
             ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
