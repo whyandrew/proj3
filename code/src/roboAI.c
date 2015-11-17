@@ -509,15 +509,19 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
         switch(ai->st.state)
         {
             case 101:
+                fprintf(stderr,"State 101");
                 penalty_start(ai, blobs, state);
                 break;
             case 102:
+                fprintf(stderr,"State 102");
                 penalty_align(ai, blobs, state);
                 break;
             case 103:
+                fprintf(stderr,"State 103");
                 penalty_approach(ai, blobs, state);
                 break;
             case 104:
+                fprintf(stderr,"State 104");
                 penalty_kick(ai, blobs, state);
                 break;
             case 105:
@@ -525,6 +529,68 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
                 
         }
     }
+
+}
+
+//Assuming Left side of field
+int find_direction(struct RoboAI *ai)
+{
+    int dx = ai->st.self->dx;
+    int dy = ai->st.self->dy;
+    int vx = ai->st.self->vx;
+    int vy = ai->st.self->vy;
+
+    //What direction is the robot facing?
+    if (ai->st.self->dx > 0 && ai->st.self->dy > 0 ) //
+    {
+        fprintf(stderr,"Left or Right");
+
+        if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
+        {
+           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            fprintf(stderr,"Facing East");
+            return 2;
+        }
+        else if (ai->st.self->vx < 0 && ai->st.self->vy < 0)
+         {
+            //Have to figure out is it facing Up or Down
+           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+
+            fprintf(stderr,"Facing WEST");
+            return 4;
+        }
+
+
+        return -1;
+    }
+    else if (ai->st.self->dx > 0 && ai->st.self->dy < 0) { // 
+        //Have to figure out is it facing Up or Down
+        // fprintf(stderr,"Up or Down");
+        // //drive();
+        // fprintf(stderr, "\tBall coords:%f", ai->st.self->dy);
+        // wait(5);
+        // fprintf(stderr, "\tNew coords:%f", ai->st.self->dy);
+       // all_stop();    
+
+        if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
+        {
+           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            fprintf(stderr,"Facing NORTH");
+            return 1;
+        }
+        else if (ai->st.self->vx < 0 && ai->st.self->vy > 0)
+         {
+            //Have to figure out is it facing Up or Down
+           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+
+            fprintf(stderr,"Facing SOUTH");
+            return 3;
+        }
+
+        return -2;
+    }
+
+    return -3;
 
 }
 
@@ -556,6 +622,13 @@ double find_distance(double *point_1, double *point_2)
                pow(point_2[1] - point_1[1], 2), 0.5);
 }
 
+// void move_to_destination(double, )
+// {
+//     return pow(pow(point_2[0] - point_1[0], 2) + 
+//                pow(point_2[1] - point_1[1], 2), 0.5);
+// }
+
+
 void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
 {
     const double distance_back = 1.0;
@@ -564,7 +637,7 @@ void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
     double goal_loc[2] = {(ai->st.side == 0) ? 1024.0 : 0.0, 384};
     double ball_to_goal_dist = find_distance(ball_loc, goal_loc);
 
-    result[0] = ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / bot_to_ball_dist;
+    result[0] = (ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / bot_to_ball_dist )- 100;
     result[1] = ball_loc[1] - distance_back * (goal_loc[1]-ball_loc[1]) / bot_to_ball_dist;
 }
 
@@ -572,7 +645,7 @@ void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
 void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
 {
 /////////////////////////////////////////////////////////////////////////////
-//                          Penalty: initial state
+//                          Penalty: initial state 101
 //
 // Wait until we know where our bot and the ball are, then progress to the
 // alignment stage.  
@@ -586,10 +659,11 @@ void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
 void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 {
 /////////////////////////////////////////////////////////////////////////////
-//                          Penalty: alignment state
+//                          Penalty: alignment state 102
 //
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
+    double PROXIMITY = 100; // How close should we be to the rally point before we move on
 
     if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
     {
@@ -604,34 +678,49 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
     double ball_to_goal[2] = {goal_loc[0] - ball_loc[0],
                               goal_loc[1] - ball_loc[1]};
-    double ball_to_goal_dist = pow(ball_to_goal[0], 2)
+    double ball_to_goal_dist = pow(ball_to_goal[0], 2)s
                              + pow(ball_to_goal[1], 2);
                              */
     double rally_point[2];
     get_rally_point(ai, 10.0, rally_point);
-    fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f\n",
+    fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
-            ai->st.self->cx, ai->st.self->cy);
+            ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
 
-    _set_output_state(OUT_AC, power, MODE_REGULATED,
-                      REGULATION_MODE_MOTOR_SYNC, ratio,
-                      MOTOR_RUN_STATE_RUNNING, tacholimit);
+
+   find_direction(ai);
+
+    // _set_output_state(OUT_AC, power, MODE_REGULATED,
+    //                   REGULATION_MODE_MOTOR_SYNC, ratio,
+    //                   MOTOR_RUN_STATE_RUNNING, tacholimit);
+
+    //Must figue out the direction to move
+
+
+
+    //Is our robot in Proximity of Rally Point
+    if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY) 
+    {
+        ai->st.state = 103; // Progress to penalty_approach stage
+    }
+
+
+
     
 }
 
 void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
 {
 /////////////////////////////////////////////////////////////////////////////
-//                          Penalty: approach state
+//                          Penalty: approach state 103
 //
 //  Move straight towards the ball until close enough to kick.
 //////////////////////////////////////////////////////////////////////////////
-
-    ;
+    fprintf(stderr,"Ready to kick state 103");
 }
 
 void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
 {
-    ;
+    ; //Just Kick
 }
 
