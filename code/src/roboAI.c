@@ -622,11 +622,22 @@ double find_distance(double *point_1, double *point_2)
                pow(point_2[1] - point_1[1], 2), 0.5);
 }
 
-// void move_to_destination(double, )
-// {
-//     return pow(pow(point_2[0] - point_1[0], 2) + 
-//                pow(point_2[1] - point_1[1], 2), 0.5);
-// }
+double arc_heading(double *point_1, double *point_2, double *point_3)
+{
+/////////////////////////////////////////////////////////////////////////////
+// Return target angle in radians.
+//
+// Find the heading that follows an arced path that passes through point_1
+// and point_2, such that the line from point_2 to point_3 is a tangent to
+// the arc. Something following this path would be aimed at point_3 when it
+// reached point_2.
+/////////////////////////////////////////////////////////////////////////////
+
+    return 2 * atan2(point_1[1] - point_2[1],
+                     point_1[0] - point_2[0])
+             - atan2(point_3[1] - point_2[1],
+                     point_3[0] - point_2[0]);
+}
 
 
 void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result)
