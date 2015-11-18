@@ -702,22 +702,22 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
             angle_error -= 2 * PI;
         while (angle_error < -PI)
             angle_error += 2 * PI;
-        if (angle_error < 0)
+        if (angle_error > 0)
         {
-            left_speed = 20.0 * (1.0 - angle_error/PI);
-            right_speed = 20.0 * (1.0 - angle_error/PI);
+            left_speed = 50.0;
+            right_speed = 50.0 * (1.0 - angle_error/PI);
         }
         else
         {
-            left_speed = 20.0 * (1.0 - angle_error/PI);
-            right_speed = 20.0 * (1.0 - angle_error/PI);
+            left_speed = 50.0 * (1.0 - angle_error/PI);
+            right_speed = 50.0;
         }
     }
     else
     { // Robot not moving so heading info inaccurate, no correction
         angle_error = 0;
-        left_speed = 20;
-        right_speed = 20;
+        left_speed = 30;
+        right_speed = 30;
     }
     
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
