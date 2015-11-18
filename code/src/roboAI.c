@@ -34,6 +34,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define PI 3.14159265358979323846
+
 void clear_motion_flags(struct RoboAI *ai)
 {
 // Reset all motion flags. See roboAI.h for what each flag represents
@@ -608,13 +610,13 @@ int find_direction(struct RoboAI *ai)
  there.
 **********************************************************************************/
 
-//double opponent_goal_X(struct RoboAI *ai)
-//{
-//    if (ai->st.side == 0)    // Our side is left
-//        return 1024.0; // Opponent's goal is on right side
-//    else
-//        return 0.0;    // Opponent's goal is on left side
-//}
+double opponent_goal_X(struct RoboAI *ai)
+{
+    if (ai->st.side == 0)    // Our side is left
+        return 1024.0; // Opponent's goal is on right side
+    else
+        return 0.0;    // Opponent's goal is on left side
+}
 
 double find_distance(double *point_1, double *point_2)
 {
@@ -633,16 +635,20 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
 // reached point_2.
 /////////////////////////////////////////////////////////////////////////////
 
-    return 2 * atan2(point_1[1] - point_2[1],
-                     point_1[0] - point_2[0])
-             - atan2(point_3[1] - point_2[1],
-                     point_3[0] - point_2[0]);
+    double target_angle = 2 * atan2(point_1[1] - point_2[1],
+                                     point_1[0] - point_2[0])
+                             - atan2(point_3[1] - point_2[1],
+                                     point_3[0] - point_2[0]);
+    while (target_angle >= PI)
+        target_angle -= 2 * PI;
+    while (target_angle < -PI)
+        target_angle += 2 * PI;
+    return target_angle;
 }
 
 
-void get_rally_point(struct RoboAI *ai, double *result)
+void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
 {
-    const double distance_back = 40.0;
     double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
     // Coordinates of opponent's goal
     double goal_loc[2] = {(ai->st.side == 0) ? 1024.0 : 0.0, 384};
@@ -674,35 +680,55 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 //
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
-    double PROXIMITY = 100; // How close should we be to the rally point before we move on
+    double PROXIMITY = 40; // How close should we be to the rally point before we move on
 
     if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
     {
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-
+    int left_speed;
+    int right_speed;
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
     double rally_point[2];
-    get_rally_point(ai, rally_point);
+    get_rally_point(ai, PROXIMITY, rally_point);
     double angle_error;
-    if (true) // TODO: check if magnitude of velocity is greater than some threshold
+    if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
     {
-      double actual_angle = atan2(ai->st.smy, ai->st.smx);
-      angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
+        double actual_angle = atan2(ai->st.smy, ai->st.smx);
+        angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
+        while (angle_error >= PI)
+            angle_error -= 2 * PI;
+        while (angle_error < -PI)
+            angle_error += 2 * PI;
+        if (angle_error < 0)
+        {
+            left_speed = 20.0 * (1.0 - angle_error/PI);
+            right_speed = 20.0 * (1.0 - angle_error/PI);
+        }
+        else
+        {
+            left_speed = 20.0 * (1.0 - angle_error/PI);
+            right_speed = 20.0 * (1.0 - angle_error/PI);
+        }
     }
     else
     { // Robot not moving so heading info inaccurate, no correction
-      angle_error = 0;
+        angle_error = 0;
+        left_speed = 20;
+        right_speed = 20;
     }
     
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
             ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
+    fprintf(stderr, "Target heading:%f\n", arc_heading(self_loc, rally_point, goal_loc)
+                                           * 180 / PI);
+    fprintf(stderr, "Self vx, vy:%f, %f\n", ai->st.self->vx, ai->st.self->vy);
 
-
-   find_direction(ai);
+    drive_custom (left_speed, right_speed);
+    //find_direction(ai);
 
     // _set_output_state(OUT_AC, power, MODE_REGULATED,
     //                   REGULATION_MODE_MOTOR_SYNC, ratio,
@@ -713,10 +739,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 
 
     //Is our robot in Proximity of Rally Point
-    if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY) 
-    {
-        ai->st.state = 103; // Progress to penalty_approach stage
-    }
+    //if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY) 
+    //{
+    //    ai->st.state = 103; // Progress to penalty_approach stage
+    //}
 
 
 
@@ -737,4 +763,3 @@ void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
 {
     ; //Just Kick
 }
-
