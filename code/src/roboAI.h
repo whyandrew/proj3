@@ -21,6 +21,7 @@
 #define _ROBO_AI_H
 
 #include "imagecapture/imageCapture.h"
+#include <time.h>
 
 #define AI_SOCCER 0 	// Play soccer!
 #define AI_PENALTY 1    // Go score some goals!
@@ -78,6 +79,10 @@ struct AI_data{
 	double old_ocx, old_ocy;	// Previous opponent (cx,cy)
 	double ovx,ovy;			// Current opponent [vx vy]
 	double omx,omy;			// Opponent heading
+	
+	// PID related data
+	double prev_angle_error, angle_error_sum;
+	clock_t prev_time;
 };
 
 struct RoboAI {
