@@ -702,6 +702,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     // PID related
     double angle_error, d_error;
     clock_t curr_time = clock();
+    const double k_P = 1;
+    const double k_I = 1;
+    const double k_D = 1;
+    double weighted_sum;
     
     if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
     {
@@ -731,7 +735,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     
     if (prev_time) // prev_time is not the dummy intial value 0
     {
-        clock_t time_diff = curr_time - prev_time;
+        double time_diff = difftime(curr_time, prev_time);
         d_error = (angle_error - ai->st.prev_angle_error) / time_diff;
         ai->st.angle_error_sum += angle_error * time_diff;
     }
@@ -739,11 +743,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     ai->st.prev_angle_error = angle_error;
     ai->st.prev_time = curr_time;
     
-    // TODO: PID formula to determine left_speed and right_speed for drive_custom:
-    // P: angle_error
-    // I: ai->st.angle_error_sum
-    // D: d_error
-    
+    weighted_sum = (k_P * angle_error
+                  + k_I * ai->st.angle_error_sum
+                  + k_D * d_error);
+    // TODO: calculate left_speed and right_speed from weighted_sum somehow
     //drive_custom (left_speed, right_speed);
         
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
