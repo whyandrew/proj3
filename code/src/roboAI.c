@@ -670,6 +670,11 @@ void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
     if(ai->st.selfID && ai->st.ballID) // Know where self and ball are
     {
         ai->st.state = 102; // Progress to alignment stage
+        
+        // Initialize values for PID
+        ai->st.prev_angle_error = 0;
+        ai->st.angle_error_sum = 0;
+        ai->st.prev_time = 0;
     }
 }
 
@@ -693,7 +698,11 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
     double rally_point[2];
     get_rally_point(ai, PROXIMITY, rally_point);
-    double angle_error;
+    
+    // PID related
+    double angle_error, d_error;
+    clock_t curr_time = clock();
+    
     if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
     {
         double actual_angle = atan2(ai->st.smy, ai->st.smx);
@@ -702,24 +711,41 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
             angle_error -= 2 * PI;
         while (angle_error < -PI)
             angle_error += 2 * PI;
-        if (angle_error > 0)
-        {
-            left_speed = 50.0;
-            right_speed = 50.0 * (1.0 - angle_error/PI);
-        }
-        else
-        {
-            left_speed = 50.0 * (1.0 - angle_error/PI);
-            right_speed = 50.0;
-        }
+        // if (angle_error > 0)
+        // {
+        //     left_speed = 50.0;
+        //     right_speed = 50.0 * (1.0 - angle_error/PI);
+        // }
+        // else
+        // {
+        //     left_speed = 50.0 * (1.0 - angle_error/PI);
+        //     right_speed = 50.0;
+        // }
     }
     else
     { // Robot not moving so heading info inaccurate, no correction
         angle_error = 0;
-        left_speed = 30;
-        right_speed = 30;
+        //left_speed = 30;
+        //right_speed = 30;
     }
     
+    if (prev_time) // prev_time is not the dummy intial value 0
+    {
+        clock_t time_diff = curr_time - prev_time;
+        d_error = (angle_error - ai->st.prev_angle_error) / time_diff;
+        ai->st.angle_error_sum += angle_error * time_diff;
+        
+        ai->st.prev_angle_error = angle_error;
+        ai->st.prev_time = curr_time;
+    }
+    
+    // TODO: PID formula to determine left_speed and right_speed for drive_custom:
+    // P: angle_error
+    // I: ai->st.angle_error_sum
+    // D: d_error
+    
+    //drive_custom (left_speed, right_speed);
+        
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
             ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
@@ -727,7 +753,6 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
                                            * 180 / PI);
     fprintf(stderr, "Self vx, vy:%f, %f\n", ai->st.self->vx, ai->st.self->vy);
 
-    drive_custom (left_speed, right_speed);
     //find_direction(ai);
 
     // _set_output_state(OUT_AC, power, MODE_REGULATED,
