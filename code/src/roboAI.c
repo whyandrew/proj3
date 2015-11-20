@@ -734,10 +734,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         clock_t time_diff = curr_time - prev_time;
         d_error = (angle_error - ai->st.prev_angle_error) / time_diff;
         ai->st.angle_error_sum += angle_error * time_diff;
-        
-        ai->st.prev_angle_error = angle_error;
-        ai->st.prev_time = curr_time;
     }
+   
+    ai->st.prev_angle_error = angle_error;
+    ai->st.prev_time = curr_time;
     
     // TODO: PID formula to determine left_speed and right_speed for drive_custom:
     // P: angle_error
