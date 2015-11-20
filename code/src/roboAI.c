@@ -511,19 +511,15 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
         switch(ai->st.state)
         {
             case 101:
-                fprintf(stderr,"State 101");
                 penalty_start(ai, blobs, state);
                 break;
             case 102:
-                fprintf(stderr,"State 102");
                 penalty_align(ai, blobs, state);
                 break;
             case 103:
-                fprintf(stderr,"State 103");
                 penalty_approach(ai, blobs, state);
                 break;
             case 104:
-                fprintf(stderr,"State 104");
                 penalty_kick(ai, blobs, state);
                 break;
             case 105:
@@ -692,7 +688,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    const double MAX_MOTOR_SPEED = 50;
+    const double MAX_MOTOR_SPEED = 30;
     int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
     int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
     
@@ -702,9 +698,9 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     // PID related
     double angle_error, d_error;
     clock_t curr_time = clock();
-    const double k_P = 1;
-    const double k_I = 1;
-    const double k_D = 1;
+    const double k_P = 10;
+    const double k_I = 0;
+    const double k_D = 1e7;
     double weighted_sum;
     
     get_rally_point(ai, PROXIMITY, rally_point);
@@ -735,9 +731,9 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     //     //right_speed = 30;
     // }
     
-    if (prev_time) // prev_time is not the dummy intial value 0
+    if (ai->st.prev_time) // prev_time is not the dummy intial value 0
     {
-        double time_diff = difftime(curr_time, prev_time);
+        double time_diff = difftime(curr_time, ai->st.prev_time);
         d_error = (angle_error - ai->st.prev_angle_error) / time_diff;
         ai->st.angle_error_sum += angle_error * time_diff;
     }
@@ -748,22 +744,31 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     weighted_sum = (k_P * angle_error
                   + k_I * ai->st.angle_error_sum
                   + k_D * d_error);
+    printf("(weighted) P: %f I:%f D:%f angle_error:%f\n",
+             k_P * angle_error,
+             k_I * ai->st.angle_error_sum,
+             k_D * d_error,
+             angle_error * 180 / PI);
 
     if (weighted_sum < 0)      // Need counterclockwise heading adjustment
     {
-      left_speed /= -weighted_sum; // Make value positive
+      printf("Left motor correction factor:%f\n", 10/(-weighted_sum));
+      left_speed *=  10/(-weighted_sum); // Make value positive
     }
     else if (weighted_sum > 0) // Need clockwise heading adjustment
     {
-      right_speed /= weighted_sum;
+      printf("Right motor correction factor:%f\n", 10/(weighted_sum));
+      right_speed *= 10/(weighted_sum);
     }
     drive_custom (left_speed, right_speed);
-        
+    printf("weighted_sum:%f left_speed:%d right_speed:%d\n",
+            weighted_sum, left_speed, right_speed);   
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
             ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
     fprintf(stderr, "Target heading:%f\n", arc_heading(self_loc, rally_point, goal_loc)
                                            * 180 / PI);
+    fprintf(stderr, "Actual heading:%f\n", actual_angle);                               
     fprintf(stderr, "Self vx, vy:%f, %f\n", ai->st.self->vx, ai->st.self->vy);
 
     //Is our robot in Proximity of Rally Point
