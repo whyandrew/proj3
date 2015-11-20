@@ -692,13 +692,13 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    int left_speed;
-    int right_speed;
+    const double MAX_MOTOR_SPEED = 50;
+    int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
+    int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
+    
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
     double rally_point[2];
-    get_rally_point(ai, PROXIMITY, rally_point);
-    
     // PID related
     double angle_error, d_error;
     clock_t curr_time = clock();
@@ -707,14 +707,16 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     const double k_D = 1;
     double weighted_sum;
     
-    if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
-    {
-        double actual_angle = atan2(ai->st.smy, ai->st.smx);
-        angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
-        while (angle_error >= PI)
-            angle_error -= 2 * PI;
-        while (angle_error < -PI)
-            angle_error += 2 * PI;
+    get_rally_point(ai, PROXIMITY, rally_point);
+    
+    // if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
+    // {
+    double actual_angle = atan2(ai->st.smy, ai->st.smx);
+    angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
+    while (angle_error >= PI)
+        angle_error -= 2 * PI;
+    while (angle_error < -PI)
+        angle_error += 2 * PI;
         // if (angle_error > 0)
         // {
         //     left_speed = 50.0;
@@ -725,13 +727,13 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         //     left_speed = 50.0 * (1.0 - angle_error/PI);
         //     right_speed = 50.0;
         // }
-    }
-    else
-    { // Robot not moving so heading info inaccurate, no correction
-        angle_error = 0;
-        //left_speed = 30;
-        //right_speed = 30;
-    }
+    // }
+    // else
+    // { // Robot not moving so heading info inaccurate, no correction
+    //     angle_error = 0;
+    //     //left_speed = 30;
+    //     //right_speed = 30;
+    // }
     
     if (prev_time) // prev_time is not the dummy intial value 0
     {
@@ -746,8 +748,16 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     weighted_sum = (k_P * angle_error
                   + k_I * ai->st.angle_error_sum
                   + k_D * d_error);
-    // TODO: calculate left_speed and right_speed from weighted_sum somehow
-    //drive_custom (left_speed, right_speed);
+
+    if (weighted_sum < 0)      // Need counterclockwise heading adjustment
+    {
+      left_speed /= -weighted_sum; // Make value positive
+    }
+    else if (weighted_sum > 0) // Need clockwise heading adjustment
+    {
+      right_speed /= weighted_sum;
+    }
+    drive_custom (left_speed, right_speed);
         
     fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
             ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
@@ -755,16 +765,6 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     fprintf(stderr, "Target heading:%f\n", arc_heading(self_loc, rally_point, goal_loc)
                                            * 180 / PI);
     fprintf(stderr, "Self vx, vy:%f, %f\n", ai->st.self->vx, ai->st.self->vy);
-
-    //find_direction(ai);
-
-    // _set_output_state(OUT_AC, power, MODE_REGULATED,
-    //                   REGULATION_MODE_MOTOR_SYNC, ratio,
-    //                   MOTOR_RUN_STATE_RUNNING, tacholimit);
-
-    //Must figue out the direction to move
-
-
 
     //Is our robot in Proximity of Rally Point
     //if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY) 
