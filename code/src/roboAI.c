@@ -514,6 +514,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
             penalty_start(ai, blobs, state);
             ai->st.frame_count = 0;
             ai->st.motor_power = 0;
+            ai->st.accumulated_proximity=0;
             break;
         case 102:
             penalty_align(ai, blobs, state);
@@ -622,6 +623,16 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
            point_1[0], point_1[1],
            point_2[0], point_2[1],
            point_3[0], point_3[1]);
+
+    
+    double shot_angle = atan2(point_3[1] - point_2[1],
+                              point_3[0] - point_2[0]);
+    printf("shot_angle: %f\n", shot_angle);
+    if (find_distance(point_1, point_2) < 100)
+    {
+       return shot_angle;
+    }
+
     double target_angle = 2 * atan2(point_1[1] - point_2[1],
                                     point_1[0] - point_2[0])
                           - atan2(point_3[1] - point_2[1],
@@ -636,10 +647,14 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
 
 void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
 {
+    
+    double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
     // Coordinates of opponent's goal
-    double goal_loc[2] = {(ai->st.side == 0) ? 1024.0 : 0.0, 384};
+    double goal_loc[2] = {(ai->st.side == 0) ?  0.0: 1024.0, 384};
     double ball_to_goal_dist = find_distance(ball_loc, goal_loc);
+    double bot_to_ball_dist = find_distance(ball_loc, self_loc);
+    printf("bot_to_ball_dist=%f\n", bot_to_ball_dist);
 
     result[0] = ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / ball_to_goal_dist;
     result[1] = ball_loc[1] - distance_back * (goal_loc[1]-ball_loc[1]) / ball_to_goal_dist;
@@ -673,13 +688,13 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 //
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
-
-    const double k_P = 10;
-    const double MAX_P = 0.8;
+ 
+    const double k_P = 4;
+    const double MAX_P = 1.2;
     const double k_I = 0;//1e-8;
     const double k_D = 0;//5;//-5;//3e6;
 
-    double PROXIMITY = 30; // How close should we be to the rally point before we move on
+    double PROXIMITY = 100; // How close should we be to the rally point before we move on
 
     if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
     {
@@ -694,13 +709,20 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 // Locations
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double goal_loc[2] = {(ai->st.side == 0) ? 1024 : 0, 384}; // Coordinates of opponent's goal
+    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
     printf("Goal loc %f, %f\n", goal_loc[0], goal_loc[1]);
     double rally_point[2];
     get_rally_point(ai, PROXIMITY, rally_point);
-
+    double shot_angle = atan2(goal_loc[1] - ball_loc[1],
+                                  goal_loc[0] - ball_loc[0]);
     double heading_angle = atan2(ai->st.smy, ai->st.smx);
     double direction_angle = atan2(ai->st.self->dy, ai->st.self->dx);
     double angle_diff = fabs(heading_angle - direction_angle);
+    double bot_to_ball_dist = find_distance(ball_loc, self_loc);
+    clock_t curr_time = clock();
+    double weighted_sum;
+    int motor_output;
+    double time_diff;
 
     if (angle_diff > 0.5 * PI && angle_diff < 1.5 * PI)
     {
@@ -712,16 +734,11 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     while (direction_angle < -PI)
         direction_angle += 2 * PI;
 
-    double angle_error = direction_angle;// - arc_heading(self_loc, rally_point, goal_loc);
+    double angle_error = direction_angle - arc_heading(self_loc, rally_point, goal_loc);
     while (angle_error >= PI)
         angle_error -= 2 * PI;
     while (angle_error < -PI)
         angle_error += 2 * PI;
-
-    clock_t curr_time = clock();
-    double weighted_sum;
-    int motor_output;
-    double time_diff;
 
     if (ai->st.prev_time) // prev_time is not the dummy initial value 0
     {
@@ -742,7 +759,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     weighted_sum = (k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P)
                     + k_I * ai->st.angle_error_sum
                     + k_D * d_error);
-
+    printf("P:%f I:%f D:%f\n",
+            k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
+            k_I * ai->st.angle_error_sum,
+            k_D * d_error);
     ai->st.motor_power += weighted_sum;
 
     ai->st.motor_power = fmax(-MAX_MOTOR_SPEED, ai->st.motor_power);
@@ -760,13 +780,8 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     }
     drive_custom (left_speed, right_speed);
 
+    printf("bot_to_ball_dist=%f\n", bot_to_ball_dist);
 
-    printf("(weighted) P: %f I:%f D:%f angle_error:%f sum:%f\n",
-           k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
-           k_I * ai->st.angle_error_sum,
-           k_D * d_error,
-           angle_error * 180 / PI,
-           weighted_sum);
 
     printf("left_speed:%d right_speed:%d ai->st.motor_power:%f\n", left_speed, right_speed,
            ai->st.motor_power);
@@ -780,18 +795,66 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 
     ai->st.prev_angle_error = angle_error;
     ai->st.prev_time = curr_time;
+    printf("Ball velocity:%f, %f\n", ai->st.bvx, ai->st.bvy);
 
-    //Is our robot in Proximity of Rally Point
-    if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY)
+    if ((bot_to_ball_dist < PROXIMITY) && (fabs(time_diff) > 1e-6))
     {
-        all_stop();
-        exit(0);
-        //ai->st.state = 103; // Progress to penalty_approach stage
+    //Is our robot in Proximity of Rally Point
+        ai->st.accumulated_proximity += CLOCKS_PER_SEC/time_diff;
+    }
+    printf("time_diff:%f accumulated_proximity:%f (fabs(time_diff) > 1e-6):%s\n\n", 
+           time_diff, ai->st.accumulated_proximity,
+           ((fabs(time_diff) > 1e-6)) ? "true" : "false");
+    //Is our robot in Proximity of Rally Point
+    if(ai->st.accumulated_proximity > 400/MAX_MOTOR_SPEED)
+    {
+        //kick();
+        //all_stop();
+        //exit(0);
+        ai->st.kick_begin = clock();
+        ai->st.state = 103; // Progress to penalty_approach stage
+    }
+    else
+    {
+        retract_speed(10);
     }
 }
 
+void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          Penalty: approach state 103
+//
+//  Move straight towards the ball until close enough to kick.
+//////////////////////////////////////////////////////////////////////////////
+    //fprintf(stderr,"Ready to kick state 103");
+    //exit(0);
+    clock_t curr_time = clock();
+    printf("Time since kick start:%f\n", 1.0 * difftime(curr_time, ai->st.kick_begin));
+    printf("Ball velocity:%f, %f\n", ai->st.bvx, ai->st.bvy);
 
+    if (difftime(curr_time, ai->st.kick_begin)/1e6 < 0.2)
+    {
+        printf("Kicking\n");
+        kick_speed(100);
+    }
+    else if (difftime(curr_time, ai->st.kick_begin) / 1e6 < 1.5)
+    {
+        printf("Retracting\n");
+        retract_speed(20);
+    }
+    else
+    {
+        kick_speed(0);
+        all_stop();
+        exit(0);
+    }
+}
 
+void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+    //kick(); //Just Kick
+}
 
 void data_collection_mode(struct RoboAI *ai, struct blob *blobs, void *state)
 {
@@ -805,22 +868,4 @@ void data_collection_mode(struct RoboAI *ai, struct blob *blobs, void *state)
     }
     drive_custom (100, right_speed);
     printf("%ld %d %f\n", curr_time, right_speed, heading_angle);
-}
-
-
-
-
-void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
-{
-/////////////////////////////////////////////////////////////////////////////
-//                          Penalty: approach state 103
-//
-//  Move straight towards the ball until close enough to kick.
-//////////////////////////////////////////////////////////////////////////////
-    fprintf(stderr,"Ready to kick state 103");
-}
-
-void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
-{
-    ; //Just Kick
 }
