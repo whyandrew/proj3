@@ -471,7 +471,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
      ** Do not change the behaviour of the robot ID routine **
     **************************************************************************/
-    fprintf(stderr,"State %d\n", ai->st.state);
+    //fprintf(stderr,"State %d\n", ai->st.state);
     if (ai->st.state==0||ai->st.state==100||ai->st.state==200)  	// Initial set up - find own, ball, and opponent blobs
     {
         // Carry out self id process.
@@ -506,25 +506,28 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
          state transitions and with calling the appropriate function based on what
          the bot is supposed to be doing.
         *****************************************************************************/
-        fprintf(stderr,"Just trackin'! State %d\n", ai->st.state);	// bot, opponent, and ball.
+        //fprintf(stderr,"Just trackin'! State %d\n", ai->st.state);	// bot, opponent, and ball.
         track_agents(ai,blobs);		// Currently, does nothing but endlessly track
         switch(ai->st.state)
         {
-            case 101:
-                penalty_start(ai, blobs, state);
-                break;
-            case 102:
-                penalty_align(ai, blobs, state);
-                break;
-            case 103:
-                penalty_approach(ai, blobs, state);
-                break;
-            case 104:
-                penalty_kick(ai, blobs, state);
-                break;
-            case 105:
-                break; // Final penalty state, nothing to do
-                
+        case 101:
+            penalty_start(ai, blobs, state);
+            ai->st.frame_count = 0;
+            ai->st.motor_power = 0;
+            break;
+        case 102:
+            penalty_align(ai, blobs, state);
+            ai->st.frame_count++;
+            break;
+        case 103:
+            penalty_approach(ai, blobs, state);
+            break;
+        case 104:
+            penalty_kick(ai, blobs, state);
+            break;
+        case 105:
+            break; // Final penalty state, nothing to do
+
         }
     }
 
@@ -545,14 +548,14 @@ int find_direction(struct RoboAI *ai)
 
         if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
         {
-           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
             fprintf(stderr,"Facing East");
             return 2;
         }
         else if (ai->st.self->vx < 0 && ai->st.self->vy < 0)
-         {
+        {
             //Have to figure out is it facing Up or Down
-           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
 
             fprintf(stderr,"Facing WEST");
             return 4;
@@ -561,25 +564,25 @@ int find_direction(struct RoboAI *ai)
 
         return -1;
     }
-    else if (ai->st.self->dx > 0 && ai->st.self->dy < 0) { // 
+    else if (ai->st.self->dx > 0 && ai->st.self->dy < 0) { //
         //Have to figure out is it facing Up or Down
         // fprintf(stderr,"Up or Down");
         // //drive();
         // fprintf(stderr, "\tBall coords:%f", ai->st.self->dy);
         // wait(5);
         // fprintf(stderr, "\tNew coords:%f", ai->st.self->dy);
-       // all_stop();    
+        // all_stop();
 
         if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
         {
-           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
             fprintf(stderr,"Facing NORTH");
             return 1;
         }
         else if (ai->st.self->vx < 0 && ai->st.self->vy > 0)
-         {
+        {
             //Have to figure out is it facing Up or Down
-           // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
+            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
 
             fprintf(stderr,"Facing SOUTH");
             return 3;
@@ -595,28 +598,12 @@ int find_direction(struct RoboAI *ai)
 /**********************************************************************************
  TO DO:
 
- Add the rest of your game playing logic below. Create appropriate functions to
- handle different states (be sure to name the states/functions in a meaningful
- way), and do any processing required in the space below.
-
- AI_main() should *NOT* do any heavy lifting. It should only call appropriate
- functions based on the current AI state.
-
- You will lose marks if AI_main() is cluttered with code that doesn't belong
- there.
+ Add the rest of your game playing logic below. 
 **********************************************************************************/
-
-double opponent_goal_X(struct RoboAI *ai)
-{
-    if (ai->st.side == 0)    // Our side is left
-        return 1024.0; // Opponent's goal is on right side
-    else
-        return 0.0;    // Opponent's goal is on left side
-}
 
 double find_distance(double *point_1, double *point_2)
 {
-    return pow(pow(point_2[0] - point_1[0], 2) + 
+    return pow(pow(point_2[0] - point_1[0], 2) +
                pow(point_2[1] - point_1[1], 2), 0.5);
 }
 
@@ -631,10 +618,14 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
 // reached point_2.
 /////////////////////////////////////////////////////////////////////////////
 
+    printf("arc_heading\n\t1:%f, %f\n\t2:%f, %f\n\t3:%f, %f\n",
+           point_1[0], point_1[1],
+           point_2[0], point_2[1],
+           point_3[0], point_3[1]);
     double target_angle = 2 * atan2(point_1[1] - point_2[1],
-                                     point_1[0] - point_2[0])
-                             - atan2(point_3[1] - point_2[1],
-                                     point_3[0] - point_2[0]);
+                                    point_1[0] - point_2[0])
+                          - atan2(point_3[1] - point_2[1],
+                                  point_3[0] - point_2[0]);
     while (target_angle >= PI)
         target_angle -= 2 * PI;
     while (target_angle < -PI)
@@ -661,16 +652,17 @@ void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
 //                          Penalty: initial state 101
 //
 // Wait until we know where our bot and the ball are, then progress to the
-// alignment stage.  
+// alignment stage.
 //////////////////////////////////////////////////////////////////////////////
     if(ai->st.selfID && ai->st.ballID) // Know where self and ball are
     {
         ai->st.state = 102; // Progress to alignment stage
-        
+
         // Initialize values for PID
         ai->st.prev_angle_error = 0;
         ai->st.angle_error_sum = 0;
         ai->st.prev_time = 0;
+        ai->st.desired_rps = 0;
     }
 }
 
@@ -681,106 +673,142 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 //
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
-    double PROXIMITY = 40; // How close should we be to the rally point before we move on
+
+    const double k_P = 10;
+    const double MAX_P = 0.8;
+    const double k_I = 0;//1e-8;
+    const double k_D = 0;//5;//-5;//3e6;
+
+    double PROXIMITY = 30; // How close should we be to the rally point before we move on
 
     if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
     {
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    const double MAX_MOTOR_SPEED = 30;
+    const double MAX_MOTOR_SPEED = 100;
     int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
     int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
-    
+    double  d_error;
+
+// Locations
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
-    double goal_loc[2] = {opponent_goal_X(ai), 384}; // Coordinates of opponent's goal
+    double goal_loc[2] = {(ai->st.side == 0) ? 1024 : 0, 384}; // Coordinates of opponent's goal
+    printf("Goal loc %f, %f\n", goal_loc[0], goal_loc[1]);
     double rally_point[2];
-    // PID related
-    double angle_error, d_error;
-    clock_t curr_time = clock();
-    const double k_P = 10;
-    const double k_I = 0;
-    const double k_D = 1e7;
-    double weighted_sum;
-    
     get_rally_point(ai, PROXIMITY, rally_point);
-    
-    // if (ai->st.self->vx + ai->st.self->vy > 0.5) // TODO: check if magnitude of velocity is greater than some threshold
-    // {
-    double actual_angle = atan2(ai->st.smy, ai->st.smx);
-    angle_error = actual_angle - arc_heading(self_loc, rally_point, goal_loc);
+
+    double heading_angle = atan2(ai->st.smy, ai->st.smx);
+    double direction_angle = atan2(ai->st.self->dy, ai->st.self->dx);
+    double angle_diff = fabs(heading_angle - direction_angle);
+
+    if (angle_diff > 0.5 * PI && angle_diff < 1.5 * PI)
+    {
+        direction_angle -= PI;
+    }
+
+    while (direction_angle >= PI)
+        direction_angle -= 2 * PI;
+    while (direction_angle < -PI)
+        direction_angle += 2 * PI;
+
+    double angle_error = direction_angle;// - arc_heading(self_loc, rally_point, goal_loc);
     while (angle_error >= PI)
         angle_error -= 2 * PI;
     while (angle_error < -PI)
         angle_error += 2 * PI;
-        // if (angle_error > 0)
-        // {
-        //     left_speed = 50.0;
-        //     right_speed = 50.0 * (1.0 - angle_error/PI);
-        // }
-        // else
-        // {
-        //     left_speed = 50.0 * (1.0 - angle_error/PI);
-        //     right_speed = 50.0;
-        // }
-    // }
-    // else
-    // { // Robot not moving so heading info inaccurate, no correction
-    //     angle_error = 0;
-    //     //left_speed = 30;
-    //     //right_speed = 30;
-    // }
-    
-    if (ai->st.prev_time) // prev_time is not the dummy intial value 0
+
+    clock_t curr_time = clock();
+    double weighted_sum;
+    int motor_output;
+    double time_diff;
+
+    if (ai->st.prev_time) // prev_time is not the dummy initial value 0
     {
-        double time_diff = difftime(curr_time, ai->st.prev_time);
-        d_error = (angle_error - ai->st.prev_angle_error) / time_diff;
+        time_diff = difftime(curr_time, ai->st.prev_time);
+        double angle_diff = angle_error - ai->st.prev_angle_error;
+        while (angle_diff >= PI)
+            angle_diff -= 2 * PI;
+        while (angle_diff < -PI)
+            angle_diff += 2 * PI;
+        d_error = 1e6 * angle_diff / time_diff;
         ai->st.angle_error_sum += angle_error * time_diff;
     }
-   
-    ai->st.prev_angle_error = angle_error;
-    ai->st.prev_time = curr_time;
-    
-    weighted_sum = (k_P * angle_error
-                  + k_I * ai->st.angle_error_sum
-                  + k_D * d_error);
-    printf("(weighted) P: %f I:%f D:%f angle_error:%f\n",
-             k_P * angle_error,
-             k_I * ai->st.angle_error_sum,
-             k_D * d_error,
-             angle_error * 180 / PI);
-
-    if (weighted_sum < 0)      // Need counterclockwise heading adjustment
+    if ((angle_error < 0) != (ai->st.prev_angle_error <0)) // Error has changed sign
     {
-      printf("Left motor correction factor:%f\n", 10/(-weighted_sum));
-      left_speed *=  10/(-weighted_sum); // Make value positive
+         printf("Resetting ai->st.motor_power\n");
+         ai->st.motor_power = 0; // Reset motor power "windup"
     }
-    else if (weighted_sum > 0) // Need clockwise heading adjustment
+    weighted_sum = (k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P)
+                    + k_I * ai->st.angle_error_sum
+                    + k_D * d_error);
+
+    ai->st.motor_power += weighted_sum;
+
+    ai->st.motor_power = fmax(-MAX_MOTOR_SPEED, ai->st.motor_power);
+    ai->st.motor_power = fmin(MAX_MOTOR_SPEED, ai->st.motor_power);
+
+    if (ai->st.motor_power < 0)      // Need counterclockwise heading adjustment
     {
-      printf("Right motor correction factor:%f\n", 10/(weighted_sum));
-      right_speed *= 10/(weighted_sum);
+        //printf("Left motor correction factor:%f\n", 10/(-weighted_sum));
+        right_speed += ai->st.motor_power*.8;//= motor_output;//
+    }
+    else // Need clockwise heading adjustment
+    {
+        //printf("Right motor correction factor:%f\n", 10/(weighted_sum));
+        left_speed -= ai->st.motor_power*.8;//= motor_output;//
     }
     drive_custom (left_speed, right_speed);
-    printf("weighted_sum:%f left_speed:%d right_speed:%d\n",
-            weighted_sum, left_speed, right_speed);   
-    fprintf(stderr, "\tBall coords:%f, %f\n\tRally point:%f, %f\n\tSelf:%f, %f,%f, %f, \n",
-            ai->st.ball->cx, ai->st.ball->cy, rally_point[0], rally_point[1],
-            ai->st.self->cx, ai->st.self->cy, ai->st.smx, ai->st.smy);
-    fprintf(stderr, "Target heading:%f\n", arc_heading(self_loc, rally_point, goal_loc)
-                                           * 180 / PI);
-    fprintf(stderr, "Actual heading:%f\n", actual_angle);                               
-    fprintf(stderr, "Self vx, vy:%f, %f\n", ai->st.self->vx, ai->st.self->vy);
+
+
+    printf("(weighted) P: %f I:%f D:%f angle_error:%f sum:%f\n",
+           k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
+           k_I * ai->st.angle_error_sum,
+           k_D * d_error,
+           angle_error * 180 / PI,
+           weighted_sum);
+
+    printf("left_speed:%d right_speed:%d ai->st.motor_power:%f\n", left_speed, right_speed,
+           ai->st.motor_power);
+    printf("Heading angle:%f d_error:%f degrees/sec\n"
+            "Direction angle:%f Diff from heading:%f\n"
+            "Arc heading:%f\n\n",
+             heading_angle * 180 / PI, d_error * 180 / PI,
+             direction_angle * 180 / PI,
+            (direction_angle - heading_angle) * 180 / PI,
+             arc_heading(self_loc, rally_point, goal_loc) * 180 / PI);
+
+    ai->st.prev_angle_error = angle_error;
+    ai->st.prev_time = curr_time;
 
     //Is our robot in Proximity of Rally Point
-    //if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY) 
-    //{
-    //    ai->st.state = 103; // Progress to penalty_approach stage
-    //}
-
-
-
-    
+    if(abs(rally_point[0] - ai->st.self->cx) < PROXIMITY && abs(rally_point[1] - ai->st.self->cy) < PROXIMITY)
+    {
+        all_stop();
+        exit(0);
+        //ai->st.state = 103; // Progress to penalty_approach stage
+    }
 }
+
+
+
+
+void data_collection_mode(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+    clock_t curr_time = clock();
+    int right_speed = 100-(ai->st.frame_count/20);
+    double heading_angle = atan2(ai->st.smy, ai->st.smx);
+    if (right_speed < 0)
+    {
+        all_stop();
+        exit(0);
+    }
+    drive_custom (100, right_speed);
+    printf("%ld %d %f\n", curr_time, right_speed, heading_angle);
+}
+
+
+
 
 void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
 {
