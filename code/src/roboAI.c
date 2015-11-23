@@ -618,20 +618,64 @@ double arc_heading(double *point_1, double *point_2, double *point_3)
 // the arc. Something following this path would be aimed at point_3 when it
 // reached point_2.
 /////////////////////////////////////////////////////////////////////////////
-
+ 
     printf("arc_heading\n\t1:%f, %f\n\t2:%f, %f\n\t3:%f, %f\n",
            point_1[0], point_1[1],
            point_2[0], point_2[1],
            point_3[0], point_3[1]);
-
     
+    const double border_dist = 100; // Go no closer than this to the outer borders    
     double shot_angle = atan2(point_3[1] - point_2[1],
-                              point_3[0] - point_2[0]);
+                               point_3[0] - point_2[0]);
+    double self_x = point_1[0];
+    double self_y = point_1[1];
+    
     printf("shot_angle: %f\n", shot_angle);
     if (find_distance(point_1, point_2) < 100)
     {
        return shot_angle;
     }
+    
+    if (self_x < border_dist) // Too close to left side
+    {
+        printf("Too close to left side\n");
+        if (self_y < border_dist) // Too close to top and left
+        {
+           return PI/4; // Head down/right
+        }
+        else if (self_y > 768 - border_dist) // Too close to bottom
+        {
+           return -PI/4; // Head up/right
+        }
+        return 0; // Head right
+    }
+    else if (self_x > 1024 - border_dist) // Too close to right side
+    {
+        printf("Too close to right side\n");
+        if (self_y < border_dist) // Too close to top and right
+        {
+           return PI * 0.75; // Head down/left
+        }
+        else if (self_y > 768 - border_dist) // Too close to bottom and right
+        {
+           return -PI * 0.75; // Head up/left
+        }
+        return PI; // Head left
+    }
+    else // X value ok
+    {
+       if (self_y < border_dist) // Too close to top
+       {
+           printf("Too close to top side\n");
+           return PI/2; // Head down
+       }
+       else if (self_y > 768 - border_dist) // Too close to bottom
+       {
+           printf("Too close to bottom side\n");
+           return -PI/2; // Head up
+       }
+    }
+    
 
     double target_angle = 2 * atan2(point_1[1] - point_2[1],
                                     point_1[0] - point_2[0])
@@ -654,7 +698,7 @@ void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
     double goal_loc[2] = {(ai->st.side == 0) ?  0.0: 1024.0, 384};
     double ball_to_goal_dist = find_distance(ball_loc, goal_loc);
     double bot_to_ball_dist = find_distance(ball_loc, self_loc);
-    printf("bot_to_ball_dist=%f\n", bot_to_ball_dist);
+    //printf("bot_to_ball_dist=%f\n", bot_to_ball_dist);
 
     result[0] = ball_loc[0] - distance_back * (goal_loc[0]-ball_loc[0]) / ball_to_goal_dist;
     result[1] = ball_loc[1] - distance_back * (goal_loc[1]-ball_loc[1]) / ball_to_goal_dist;
@@ -689,8 +733,8 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
  
-    const double k_P = 4;
-    const double MAX_P = 1.2;
+    const double k_P = 5;
+    //const double MAX_P = 1.2;
     const double k_I = 0;//1e-8;
     const double k_D = 0;//5;//-5;//3e6;
 
@@ -710,7 +754,9 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
     double goal_loc[2] = {(ai->st.side == 0) ? 1024 : 0, 384}; // Coordinates of opponent's goal
     double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
-    printf("Goal loc %f, %f\n", goal_loc[0], goal_loc[1]);
+    double kicker_loc[2] = {ai->st.self->cx + 100.0 * ai->st.self->dx,
+                             ai->st.self->cy + 100.0 * ai->st.self->dy};
+    printf("Self loc %f, %f\n", self_loc[0], self_loc[1]);
     double rally_point[2];
     get_rally_point(ai, PROXIMITY, rally_point);
     double shot_angle = atan2(goal_loc[1] - ball_loc[1],
@@ -718,11 +764,12 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     double heading_angle = atan2(ai->st.smy, ai->st.smx);
     double direction_angle = atan2(ai->st.self->dy, ai->st.self->dx);
     double angle_diff = fabs(heading_angle - direction_angle);
-    double bot_to_ball_dist = find_distance(ball_loc, self_loc);
+    double bot_to_ball_dist = find_distance(ball_loc, kicker_loc);
     clock_t curr_time = clock();
     double weighted_sum;
     int motor_output;
     double time_diff;
+
 
     if (angle_diff > 0.5 * PI && angle_diff < 1.5 * PI)
     {
@@ -733,24 +780,31 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         direction_angle -= 2 * PI;
     while (direction_angle < -PI)
         direction_angle += 2 * PI;
-
-    double angle_error = direction_angle - arc_heading(self_loc, rally_point, goal_loc);
+    double target_heading = arc_heading(self_loc, rally_point, goal_loc);
+    double angle_error = direction_angle - target_heading;
+    printf("Target heading:%f Angle error: %f\n", target_heading * 180 / PI,
+                                                  angle_error * 180 / PI);
+    //return; // Return before any movement for testing purposes
     while (angle_error >= PI)
         angle_error -= 2 * PI;
     while (angle_error < -PI)
         angle_error += 2 * PI;
-    if (angle_error > PI / 8)
+    if (angle_error > PI / 8 && bot_to_ball_dist > PROXIMITY*1.5)
     {
         printf("Pivoting left: angle error %f\n", angle_error * 180 / PI);
-        pivot_left_speed(15);
+        drive_custom (15, 40);
+        //pivot_left_speed(15);
         return;
     }
-    else if (angle_error < -PI / 8)
+    else if (angle_error < -PI / 8 && bot_to_ball_dist > PROXIMITY*1.5)
     {
         printf("Pivoting right: angle error %f\n", angle_error * 180 / PI);
-        pivot_right_speed(15);
+        //pivot_right_speed(15);
+        drive_custom (40, 15);
         return;
     }
+    else
+        printf("PID in control. Angle error: %f\n", angle_error * 180 / PI);
     if (ai->st.prev_time) // prev_time is not the dummy initial value 0
     {
         time_diff = difftime(curr_time, ai->st.prev_time);
@@ -767,11 +821,11 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
          printf("Resetting ai->st.motor_power\n");
          ai->st.motor_power = 0; // Reset motor power "windup"
     }
-    weighted_sum = (k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P)
+    weighted_sum = (k_P * (angle_error)// < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P)
                     + k_I * ai->st.angle_error_sum
                     + k_D * d_error);
     printf("P:%f I:%f D:%f\n",
-            k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
+            k_P * (angle_error),// < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
             k_I * ai->st.angle_error_sum,
             k_D * d_error);
     ai->st.motor_power = weighted_sum;
@@ -817,13 +871,14 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
            time_diff, ai->st.accumulated_proximity,
            ((fabs(time_diff) > 1e-6)) ? "true" : "false");
     //Is our robot in Proximity of Rally Point
-    if(ai->st.accumulated_proximity > 400/MAX_MOTOR_SPEED)
+    if(ai->st.accumulated_proximity > 600/MAX_MOTOR_SPEED)
     {
         //kick();
         //all_stop();
         //exit(0);
         ai->st.kick_begin = clock();
         ai->st.state = 103; // Progress to penalty_approach stage
+        penalty_approach(ai, blobs, state);
     }
     else
     {
@@ -844,10 +899,10 @@ void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
     printf("Time since kick start:%f\n", 1.0 * difftime(curr_time, ai->st.kick_begin));
     printf("Ball velocity:%f, %f\n", ai->st.bvx, ai->st.bvy);
 
-    if (difftime(curr_time, ai->st.kick_begin)/1e6 < 0.2)
+    if (difftime(curr_time, ai->st.kick_begin)/1e6 < 0.15)
     {
         printf("Kicking\n");
-        kick_speed(100);
+        kick_speed(90);
     }
     else if (difftime(curr_time, ai->st.kick_begin) / 1e6 < 1.5)
     {
