@@ -83,6 +83,11 @@ struct AI_data{
 	// PID related data
 	double prev_angle_error, angle_error_sum;
 	clock_t prev_time;
+	long frame_count;
+	double motor_power, desired_rps, accumulated_proximity;
+	
+	// Kicking
+	clock_t kick_begin;
 };
 
 struct RoboAI {
