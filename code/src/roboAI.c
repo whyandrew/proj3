@@ -701,7 +701,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    const double MAX_MOTOR_SPEED = 100;
+    const double MAX_MOTOR_SPEED = 80;
     int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
     int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
     double  d_error;
@@ -739,7 +739,18 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         angle_error -= 2 * PI;
     while (angle_error < -PI)
         angle_error += 2 * PI;
-
+    if (angle_error > PI / 8)
+    {
+        printf("Pivoting left: angle error %f\n", angle_error * 180 / PI);
+        pivot_left_speed(15);
+        return;
+    }
+    else if (angle_error < -PI / 8)
+    {
+        printf("Pivoting right: angle error %f\n", angle_error * 180 / PI);
+        pivot_right_speed(15);
+        return;
+    }
     if (ai->st.prev_time) // prev_time is not the dummy initial value 0
     {
         time_diff = difftime(curr_time, ai->st.prev_time);
@@ -763,7 +774,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
             k_P * (angle_error < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P),
             k_I * ai->st.angle_error_sum,
             k_D * d_error);
-    ai->st.motor_power += weighted_sum;
+    ai->st.motor_power = weighted_sum;
 
     ai->st.motor_power = fmax(-MAX_MOTOR_SPEED, ai->st.motor_power);
     ai->st.motor_power = fmin(MAX_MOTOR_SPEED, ai->st.motor_power);
