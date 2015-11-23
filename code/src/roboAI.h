@@ -143,6 +143,8 @@ void clear_motion_flags(struct RoboAI *ai);
    playing functionality below.
 *****************************************************************************/
 int find_direction(struct RoboAI *ai);
+double arc_heading_ppa(double *point_1, double *point_2, double final_angle);
+double avoid_border(double *point);
 double find_distance(double *point_1, double *point_2);
 double arc_heading(double *point_1, double *point_2, double *point_3);
 void get_rally_point(struct RoboAI *ai, double bot_to_ball_dist, double *result);
