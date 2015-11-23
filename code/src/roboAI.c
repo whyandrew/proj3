@@ -534,6 +534,11 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
 }
 
+/**********************************************************************************
+
+                                 Helper functions
+
+**********************************************************************************/
 //Assuming Left side of field
 int find_direction(struct RoboAI *ai)
 {
@@ -596,12 +601,92 @@ int find_direction(struct RoboAI *ai)
 
 }
 
-/**********************************************************************************
- TO DO:
+double avoid_border(double *point)
+{
+    const double border_dist = 100; // Go no closer than this to the outer borders    
+    double self_x = point[0];
+    double self_y = point[1];
 
- Add the rest of your game playing logic below. 
-**********************************************************************************/
-
+    if (self_x < border_dist) // Too close to left side
+    {
+        printf("Too close to left side\n");
+        if (self_y < border_dist) // Too close to top and left
+        {
+           return PI/4; // Head down/right
+        }
+        else if (self_y > 768 - border_dist) // Too close to bottom
+        {
+           return -PI/4; // Head up/right
+        }
+        return 0; // Head right
+    }
+    else if (self_x > 1024 - border_dist) // Too close to right side
+    {
+        printf("Too close to right side\n");
+        if (self_y < border_dist) // Too close to top and right
+        {
+           return PI * 0.75; // Head down/left
+        }
+        else if (self_y > 768 - border_dist) // Too close to bottom and right
+        {
+           return -PI * 0.75; // Head up/left
+        }
+        return PI; // Head left
+    }
+    else // X value ok
+    {
+       if (self_y < border_dist) // Too close to top
+       {
+           printf("Too close to top side\n");
+           return PI/2; // Head down
+       }
+       else if (self_y > 768 - border_dist) // Too close to bottom
+       {
+           printf("Too close to bottom side\n");
+           return -PI/2; // Head up
+       }
+    }
+}
+double arc_heading_ppa(double *point_1, double *point_2, double final_angle)//double *point_3)
+{
+/////////////////////////////////////////////////////////////////////////////
+// Return target angle in radians, from two points and a final angle.
+//
+// Find the heading that follows an arced path that passes through point_1
+// and point_2, such that the angle when reaching point_2 is final_angle.
+/////////////////////////////////////////////////////////////////////////////
+ 
+    printf("arc_heading\n\t1:%f, %f\n\t2:%f, %f\n\tfinal_angle:%f\n",
+           point_1[0], point_1[1],
+           point_2[0], point_2[1],
+           final_angle * PI / 180);
+    
+    const double border_dist = 100; // Go no closer than this to the outer borders    
+    double self_x = point_1[0];
+    double self_y = point_1[1];
+    
+    if (self_x < border_dist || self_x > 1024 - border_dist ||
+        self_y < border_dist || self_y > 768 - border_dist)
+        return avoid_border(point_1);
+    
+    //double final_angle = atan2(point_3[1] - point_2[1],
+    //                           point_3[0] - point_2[0]);
+    
+    printf("final_angle: %f\n", final_angle);
+    if (find_distance(point_1, point_2) < 100)
+    {
+       return final_angle;
+    }
+    
+    double target_angle = 2 * atan2(point_1[1] - point_2[1],
+                                    point_1[0] - point_2[0])
+                          - final_angle;
+    while (target_angle >= PI)
+        target_angle -= 2 * PI;
+    while (target_angle < -PI)
+        target_angle += 2 * PI;
+    return target_angle;
+}
 double find_distance(double *point_1, double *point_2)
 {
     return pow(pow(point_2[0] - point_1[0], 2) +
@@ -705,6 +790,11 @@ void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
 }
 
 
+/**********************************************************************************
+
+                            State functions
+
+**********************************************************************************/
 void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
 {
 /////////////////////////////////////////////////////////////////////////////
