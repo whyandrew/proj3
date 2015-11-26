@@ -689,8 +689,75 @@ double arc_heading_ppa(double *point_1, double *point_2, double final_angle)//do
 }
 double find_distance(double *point_1, double *point_2)
 {
-    return pow(pow(point_2[0] - point_1[0], 2) +
-               pow(point_2[1] - point_1[1], 2), 0.5);
+    return sqrt(pow(point_2[0] - point_1[0], 2) +
+                pow(point_2[1] - point_1[1], 2));
+}
+
+double distance_to_line(double *point_1, double *point_2, double *point_3)
+{
+    // Adapted from https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+    double x_1 = point_1[0];
+    double y_1 = point_1[1];
+    double x_2 = point_2[0];
+    double y_2 = point_2[1];
+    double x_3 = point_3[0];
+    double y_3 = point_3[1];
+
+    return (abs(x_1 * (y_3 - y_2)
+                - y_1 * (x_3 - x_2)
+                + x_3 * y_2 - y_3 * x_2)
+            / find_distance(point_2, point_3));
+}
+
+
+double angle_to(double *point_1, double *point_2)
+{
+    return atan2(point_1[1] - point_2[1],
+                 point_1[0] - point_2[0]);
+}
+
+double add_angles(double angle1, double angle2)
+{
+    double theta = angle1 + angle2;
+    while (theta < -PI)
+        theta += 2 * PI;
+    while (theta >= PI)
+        theta -= 2 * PI;
+    return theta;
+}
+
+double attack_heading(double *self_loc, double *ball_loc, double *goal_loc)
+{
+    double theta;
+    if ((distance_to_line(self_loc, ball_loc, goal_loc) < 20)
+        && (find_distance(self_loc, ball_loc) < 100))
+    {
+        theta = angle_to(goal_loc, ball_loc);
+    }
+    else if ((distance_to_line(self_loc, ball_loc, goal_loc) < 100)
+          && (find_distance(self_loc, ball_loc) < 200)
+          && (find_distance(self_loc, goal_loc)
+              < (20 + find_distance(ball_loc, goal_loc))))
+    {
+        if (add_angles(angle_to(ball_loc, goal_loc),
+                       -angle_to(self_loc, goal_loc)) > 0)
+        {
+            theta = angle_to(goal_loc, ball_loc) + PI/2;
+        }
+        else
+        {
+            theta = angle_to(goal_loc, ball_loc) - PI/2;
+        }
+    }
+    else if (abs(add_angles(angle_to(self_loc, ball_loc), -angle_to(goal_loc, ball_loc))) < PI/2)
+    {
+        theta = angle_to(ball_loc, goal_loc);
+    }
+    else
+    {
+        theta = -angle_to(goal_loc, ball_loc)+ 2 * angle_to(self_loc, ball_loc);
+    }
+    return theta;
 }
 
 double arc_heading(double *point_1, double *point_2, double *point_3)
@@ -871,6 +938,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
     while (direction_angle < -PI)
         direction_angle += 2 * PI;
     double target_heading = arc_heading(self_loc, rally_point, goal_loc);
+    //double target_heading = attack_heading(self_loc, ball_loc, goal_loc);
     double angle_error = direction_angle - target_heading;
     printf("Target heading:%f Angle error: %f\n", target_heading * 180 / PI,
                                                   angle_error * 180 / PI);
@@ -1003,7 +1071,7 @@ void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
     {
         kick_speed(0);
         all_stop();
-        exit(0);
+        //exit(0);
     }
 }
 
