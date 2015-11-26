@@ -80,6 +80,9 @@ struct AI_data{
 	double ovx,ovy;			// Current opponent [vx vy]
 	double omx,omy;			// Opponent heading
 	
+	// Navigation
+	double target_x, target_y, target_theta;
+	
 	// PID related data
 	double prev_angle_error, angle_error_sum;
 	clock_t prev_time;
