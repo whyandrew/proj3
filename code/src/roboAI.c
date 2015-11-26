@@ -862,6 +862,84 @@ void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
                             State functions
 
 **********************************************************************************/
+
+void move_to(struct RoboAI *ai, struct blob *blobs, void *state)
+/////////////////////////////////////////////////////////////////////////////
+//  Move to ai->st.target_x, ai->st.target_y, trying to be pointing in
+//  direction ai->st.target_theta when we get there.
+//
+//////////////////////////////////////////////////////////////////////////////
+{
+    const double k_P = 5;
+    const double k_I = 0;//1e-8;
+    const double k_D = 0;//5;//-5;//3e6;
+    const double PROXIMITY = 100; // How close should we be to the rally point before we move on
+    const double MAX_MOTOR_SPEED = 80;
+    
+    double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
+    double target_loc[2] = {ai->st.target_x, ai->st.target_y};
+    double target_heading =  arc_heading_ppa(self_loc, target_loc,
+                                               ai->st.target_theta);
+    double heading_angle = atan2(ai->st.smy, ai->st.smx);
+    double direction_angle = atan2(ai->st.self->dy, ai->st.self->dx);
+    double angle_diff = fabs(heading_angle - direction_angle);
+    //double bot_to_ball_dist = find_distance(ball_loc, kicker_loc);
+    clock_t curr_time = clock();
+    double time_diff;
+    
+    if (angle_diff > 0.5 * PI && angle_diff < 1.5 * PI)
+    {
+        direction_angle -= PI;
+    }
+
+    while (direction_angle >= PI) direction_angle -= 2 * PI;
+    while (direction_angle < -PI) direction_angle += 2 * PI;
+    double angle_error = direction_angle - target_heading;
+    printf("Target heading:%f Angle error: %f\n", target_heading * 180 / PI,
+                                                  angle_error * 180 / PI);
+    //return; // Return before any movement for testing purposes
+    while (angle_error >= PI) angle_error -= 2 * PI;
+    while (angle_error < -PI) angle_error += 2 * PI;
+    if (angle_error > PI / 8)
+    {
+
+    }
+    else if (angle_error < -PI / 8)
+    {
+        drive_custom (40, 15);
+    }
+    else if (ai->st.prev_time) // prev_time is not the dummy initial value 0
+    {
+        time_diff = difftime(curr_time, ai->st.prev_time);
+        double angle_diff = angle_error - ai->st.prev_angle_error;
+        int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
+        int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
+        while (angle_diff >= PI)
+            angle_diff -= 2 * PI;
+        while (angle_diff < -PI)
+            angle_diff += 2 * PI;
+        double d_error = 1e6 * angle_diff / time_diff;
+        double weighted_sum = (k_P * (angle_error)// < 0 ? -1 : 1) * fmin(fabs(angle_error), MAX_P)
+                              + k_I * ai->st.angle_error_sum
+                              + k_D * d_error);
+        weighted_sum = fmax(-MAX_MOTOR_SPEED, ai->st.motor_power);
+        weighted_sum = fmin(MAX_MOTOR_SPEED, ai->st.motor_power);
+        if (ai->st.motor_power < 0)      // Need counterclockwise heading adjustment
+        {
+            right_speed += ai->st.motor_power*.8;//= motor_output;//
+        } 
+        else // Need clockwise heading adjustment
+        {
+            left_speed -= ai->st.motor_power*.8;//= motor_output;//
+        }
+        drive_custom (left_speed, right_speed);
+     }
+
+     ai->st.angle_error_sum += angle_error * time_diff;
+     ai->st.prev_angle_error = angle_error;
+     ai->st.prev_time = curr_time;
+}
+
 void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
 {
 /////////////////////////////////////////////////////////////////////////////
@@ -891,11 +969,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 //////////////////////////////////////////////////////////////////////////////
  
     const double k_P = 5;
-    //const double MAX_P = 1.2;
     const double k_I = 0;//1e-8;
     const double k_D = 0;//5;//-5;//3e6;
 
-    double PROXIMITY = 100; // How close should we be to the rally point before we move on
+    const double PROXIMITY = 100; // How close should we be to the rally point before we move on
 
     if (ai->st.ball == NULL || ai->st.self == NULL) // Lost ball or self
     {
