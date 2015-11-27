@@ -728,19 +728,19 @@ double add_angles(double angle1, double angle2)
 
 double attack_heading(double *self_loc, double *ball_loc, double *goal_loc)
 {
+    double BORDER_WIDTH = 100;
     double theta;
-    if ((distance_to_line(self_loc, ball_loc, goal_loc) < 20)
-        && (find_distance(self_loc, ball_loc) < 100))
+    double x = self_loc[0];
+    double y = self_loc[1];
+    if find_distance_line(self_loc, ball_loc, goal_loc) < 20 && find_distance(self_loc, ball_loc) < 100
     {
         theta = angle_to(goal_loc, ball_loc);
     }
-    else if ((distance_to_line(self_loc, ball_loc, goal_loc) < 100)
-          && (find_distance(self_loc, ball_loc) < 200)
-          && (find_distance(self_loc, goal_loc)
-              < (20 + find_distance(ball_loc, goal_loc))))
+    else if (find_distance_line(self_loc, ball_loc, goal_loc) < 100
+          && find_distance(self_loc, ball_loc) < 200
+          && find_distance(self_loc, goal_loc) < 20 + find_distance(ball_loc, goal_loc))
     {
-        if (add_angles(angle_to(ball_loc, goal_loc),
-                       -angle_to(self_loc, goal_loc)) > 0)
+        if (add_angles(angle_to(ball_loc, goal_loc), -angle_to(self_loc, goal_loc)) > 0)
         {
             theta = angle_to(goal_loc, ball_loc) + PI/2;
         }
@@ -748,16 +748,31 @@ double attack_heading(double *self_loc, double *ball_loc, double *goal_loc)
         {
             theta = angle_to(goal_loc, ball_loc) - PI/2;
         }
-    }
+    }    
     else if (abs(add_angles(angle_to(self_loc, ball_loc), -angle_to(goal_loc, ball_loc))) < PI/2)
     {
         theta = angle_to(ball_loc, goal_loc);
     }
     else
     {
-        theta = -angle_to(goal_loc, ball_loc)+ 2 * angle_to(self_loc, ball_loc);
+        theta = -angle_to(goal_loc, ball_loc)+ 2*angle_to(self_loc, ball_loc);
     }
-    return theta;
+    
+    double vector_x = cos(theta);
+    double vector_y = sin(theta);
+    
+    if (x < BORDER_WIDTH)
+        vector_x = max(vector_x, (BORDER_WIDTH - x) / BORDER_WIDTH);
+    if (x > 1024 - BORDER_WIDTH)
+        vector_x = min(vector_x, -(x - (1024 - BORDER_WIDTH)) / BORDER_WIDTH);
+    if (y < BORDER_WIDTH)
+        vector_y = max(vector_y, (BORDER_WIDTH - y) / BORDER_WIDTH);
+    if (y > 768 - BORDER_WIDTH)
+        vector_y = min(vector_y, -(y - (768 - BORDER_WIDTH)) / BORDER_WIDTH);
+        
+    theta = atan2(vector_y, vector_x);
+
+    return theta; //x + scale * vector_x, y + scale * vector_y;
 }
 
 double arc_heading(double *point_1, double *point_2, double *point_3)
