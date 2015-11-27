@@ -508,6 +508,7 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
         *****************************************************************************/
         //fprintf(stderr,"Just trackin'! State %d\n", ai->st.state);	// bot, opponent, and ball.
         track_agents(ai,blobs);		// Currently, does nothing but endlessly track
+
         switch(ai->st.state)
         {
         case 101:
@@ -728,15 +729,15 @@ double add_angles(double angle1, double angle2)
 
 double attack_heading(double *self_loc, double *ball_loc, double *goal_loc)
 {
-    double BORDER_WIDTH = 100;
+    double BORDER_WIDTH = 150;
     double theta;
     double x = self_loc[0];
     double y = self_loc[1];
-    if find_distance_line(self_loc, ball_loc, goal_loc) < 20 && find_distance(self_loc, ball_loc) < 100
+    if (distance_to_line(self_loc, ball_loc, goal_loc) < 20 && find_distance(self_loc, ball_loc) < 100)
     {
         theta = angle_to(goal_loc, ball_loc);
     }
-    else if (find_distance_line(self_loc, ball_loc, goal_loc) < 100
+    else if (distance_to_line(self_loc, ball_loc, goal_loc) < 100
           && find_distance(self_loc, ball_loc) < 200
           && find_distance(self_loc, goal_loc) < 20 + find_distance(ball_loc, goal_loc))
     {
@@ -762,18 +763,19 @@ double attack_heading(double *self_loc, double *ball_loc, double *goal_loc)
     double vector_y = sin(theta);
     
     if (x < BORDER_WIDTH)
-        vector_x = max(vector_x, (BORDER_WIDTH - x) / BORDER_WIDTH);
+        vector_x = fmax(vector_x, (BORDER_WIDTH - x) / BORDER_WIDTH);
     if (x > 1024 - BORDER_WIDTH)
-        vector_x = min(vector_x, -(x - (1024 - BORDER_WIDTH)) / BORDER_WIDTH);
+        vector_x = fmin(vector_x, -(x - (1024 - BORDER_WIDTH)) / BORDER_WIDTH);
     if (y < BORDER_WIDTH)
-        vector_y = max(vector_y, (BORDER_WIDTH - y) / BORDER_WIDTH);
+        vector_y = fmax(vector_y, (BORDER_WIDTH - y) / BORDER_WIDTH);
     if (y > 768 - BORDER_WIDTH)
-        vector_y = min(vector_y, -(y - (768 - BORDER_WIDTH)) / BORDER_WIDTH);
+        vector_y = fmin(vector_y, -(y - (768 - BORDER_WIDTH)) / BORDER_WIDTH);
         
     theta = atan2(vector_y, vector_x);
 
     return theta; //x + scale * vector_x, y + scale * vector_y;
 }
+
 
 double arc_heading(double *point_1, double *point_2, double *point_3)
 {
@@ -878,7 +880,7 @@ void get_rally_point(struct RoboAI *ai, double distance_back, double *result)
 
 **********************************************************************************/
 
-void move_to(struct RoboAI *ai, struct blob *blobs, void *state)
+void move_to(struct RoboAI *ai, double *target_loc, double target_theta)
 /////////////////////////////////////////////////////////////////////////////
 //  Move to ai->st.target_x, ai->st.target_y, trying to be pointing in
 //  direction ai->st.target_theta when we get there.
@@ -892,9 +894,8 @@ void move_to(struct RoboAI *ai, struct blob *blobs, void *state)
     const double MAX_MOTOR_SPEED = 80;
     
     double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
-    double target_loc[2] = {ai->st.target_x, ai->st.target_y};
     double target_heading =  arc_heading_ppa(self_loc, target_loc,
-                                               ai->st.target_theta);
+                                               target_theta);
     double heading_angle = atan2(ai->st.smy, ai->st.smx);
     double direction_angle = atan2(ai->st.self->dy, ai->st.self->dx);
     double angle_diff = fabs(heading_angle - direction_angle);
@@ -951,7 +952,7 @@ void move_to(struct RoboAI *ai, struct blob *blobs, void *state)
      }
 
      ai->st.angle_error_sum += angle_error * time_diff;
-     ai->st.prev_angle_error = angle_error;
+     ai->st.prev_angle_error = angle_error; 
      ai->st.prev_time = curr_time;
 }
 
@@ -972,6 +973,7 @@ void penalty_start(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.angle_error_sum = 0;
         ai->st.prev_time = 0;
         ai->st.desired_rps = 0;
+
     }
 }
 
@@ -982,7 +984,10 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
 //
 // Travel to a short distance behind the ball, arriving in line with a goal shot.
 //////////////////////////////////////////////////////////////////////////////
- 
+    //double target_loc[2] = {512.0, 384.0};
+    //move_to(ai, target_loc, PI);
+    //return;
+    
     const double k_P = 5;
     const double k_I = 0;//1e-8;
     const double k_D = 0;//5;//-5;//3e6;
@@ -994,7 +999,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         ai->st.state = 101; // Return to initial stage until ball and self found
         return;
     }
-    const double MAX_MOTOR_SPEED = 80;
+    const double MAX_MOTOR_SPEED = 100;
     int left_speed = MAX_MOTOR_SPEED;  // Reduce later if needed for steering
     int right_speed = MAX_MOTOR_SPEED; // Reduce later if needed for steering
     double  d_error;
@@ -1029,8 +1034,8 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
         direction_angle -= 2 * PI;
     while (direction_angle < -PI)
         direction_angle += 2 * PI;
-    double target_heading = arc_heading(self_loc, rally_point, goal_loc);
-    //double target_heading = attack_heading(self_loc, ball_loc, goal_loc);
+    //double target_heading = arc_heading(self_loc, rally_point, goal_loc);
+    double target_heading = attack_heading(self_loc, rally_point, goal_loc);
     double angle_error = direction_angle - target_heading;
     printf("Target heading:%f Angle error: %f\n", target_heading * 180 / PI,
                                                   angle_error * 180 / PI);
@@ -1121,7 +1126,7 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state)
            time_diff, ai->st.accumulated_proximity,
            ((fabs(time_diff) > 1e-6)) ? "true" : "false");
     //Is our robot in Proximity of Rally Point
-    if(ai->st.accumulated_proximity > 600/MAX_MOTOR_SPEED)
+    if(ai->st.accumulated_proximity > 800/MAX_MOTOR_SPEED)
     {
         //kick();
         //all_stop();
@@ -1163,7 +1168,8 @@ void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
     {
         kick_speed(0);
         all_stop();
-        //exit(0);
+        ai->st.state = 101; // Disable for actual penalty kick
+        //exit(0);o
     }
 }
 
