@@ -1161,7 +1161,7 @@ void soccer_start(struct RoboAI *ai, struct blob *blobs, void *state)
         printf("Running Defend\n");
         //ai->st.state = 2;
         //arc_heading_ppa(self_loc, ball_loc, 0);
-        drive(ai,blob,state);
+        //drive(ai,blob,state);
     }
 
 }
