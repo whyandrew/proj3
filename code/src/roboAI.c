@@ -511,6 +511,14 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
 
         switch(ai->st.state)
         {
+        //Soccer
+        case 0:
+            soccer_start(ai, blobs, state);
+            break;
+        case 1:
+            soccer_start(ai, blobs, state);
+            break;
+        //Penalty
         case 101:
             penalty_start(ai, blobs, state);
             ai->st.frame_count = 0;
@@ -523,9 +531,6 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
             break;
         case 103:
             penalty_approach(ai, blobs, state);
-            break;
-        case 104:
-            penalty_kick(ai, blobs, state);
             break;
         case 105:
             break; // Final penalty state, nothing to do
@@ -540,68 +545,6 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
                                  Helper functions
 
 **********************************************************************************/
-//Assuming Left side of field
-int find_direction(struct RoboAI *ai)
-{
-    int dx = ai->st.self->dx;
-    int dy = ai->st.self->dy;
-    int vx = ai->st.self->vx;
-    int vy = ai->st.self->vy;
-
-    //What direction is the robot facing?
-    if (ai->st.self->dx > 0 && ai->st.self->dy > 0 ) //
-    {
-        fprintf(stderr,"Left or Right");
-
-        if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
-        {
-            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
-            fprintf(stderr,"Facing East");
-            return 2;
-        }
-        else if (ai->st.self->vx < 0 && ai->st.self->vy < 0)
-        {
-            //Have to figure out is it facing Up or Down
-            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
-
-            fprintf(stderr,"Facing WEST");
-            return 4;
-        }
-
-
-        return -1;
-    }
-    else if (ai->st.self->dx > 0 && ai->st.self->dy < 0) { //
-        //Have to figure out is it facing Up or Down
-        // fprintf(stderr,"Up or Down");
-        // //drive();
-        // fprintf(stderr, "\tBall coords:%f", ai->st.self->dy);
-        // wait(5);
-        // fprintf(stderr, "\tNew coords:%f", ai->st.self->dy);
-        // all_stop();
-
-        if (ai->st.self->vx > 0 && ai->st.self->vy < 0)
-        {
-            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
-            fprintf(stderr,"Facing NORTH");
-            return 1;
-        }
-        else if (ai->st.self->vx < 0 && ai->st.self->vy > 0)
-        {
-            //Have to figure out is it facing Up or Down
-            // fprintf(stderr, "\tBall coords:%f, %f", ai->st.old_scx, ai->st.self->dx);
-
-            fprintf(stderr,"Facing SOUTH");
-            return 3;
-        }
-
-        return -2;
-    }
-
-    return -3;
-
-}
-
 double avoid_border(double *point)
 {
     const double border_dist = 100; // Go no closer than this to the outer borders    
@@ -1173,11 +1116,6 @@ void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state)
     }
 }
 
-void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state)
-{
-    //kick(); //Just Kick
-}
-
 void data_collection_mode(struct RoboAI *ai, struct blob *blobs, void *state)
 {
     clock_t curr_time = clock();
@@ -1190,4 +1128,53 @@ void data_collection_mode(struct RoboAI *ai, struct blob *blobs, void *state)
     }
     drive_custom (100, right_speed);
     printf("%ld %d %f\n", curr_time, right_speed, heading_angle);
+}
+
+void soccer_start(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          soccer_start: initial state 1
+//
+// Decide whether to attack or to defend based on locations of Self/Ball/Opp
+// G-Self (Our Goal on Left), B- Ball, R-Opp (Goal to right)
+//  G   (B)   R        -> Attack or Defend (State 2)
+//  R   (B)   G        -> Chase     (State 3)
+//
+//  R    G   (B)       -> Attack (Straight Path) (State 4)
+//  G    R   (B)       -> Attack (Curve Path) (State 5)
+//
+// (B)   R    G        -> Defend to Net (Curve Path) (State 6)
+// (B)   G    R        -> Chase (State 7)
+//
+//////////////////////////////////////////////////////////////////////////////
+    double self_loc[2] = {ai->st.self->cx, ai->st.self->cy};
+    double opp_loc[2] = {ai->st.opp->cx, ai->st.opp->cy};
+    double ball_loc[2] = {ai->st.ball->cx, ai->st.ball->cy};
+    double self_goal[2] = {(ai->st.side == 1) ? 1024 : 0, 384}; 
+    double opp_goal[2] = {(ai->st.side == 0) ? 1024 : 0, 384}; 
+
+    //is_collinear(goal_loc[0],goal_loc[1], ball_loc[0],ball_loc[1], opp_loc[0], opp_loc[1] );
+    printf("Defend\n");
+      printf("%f  % f   %f\n",self_loc[0], ball_loc[0], opp_loc[0] );
+    if (self_loc[0] <= ball_loc[0] && ball_loc[0] <= opp_loc[0])
+    {
+        printf("Running Defend\n");
+        //ai->st.state = 2;
+        //arc_heading_ppa(self_loc, ball_loc, 0);
+        drive(ai,blob,state);
+    }
+
+}
+
+
+Bool is_collinear(double goalX,double goalY, double ballX, double ballY, double oppX, double oppY){
+    double collinear = (goalX * (ballY - oppY) + ballX * (oppY - goalY) + oppX * (goalY - ballY) ) / 2;
+    printf("COLLINEAR %f  %f! %f %f !%f %f ! %f", goalX, goalY, ballX,  ballY,  oppX,  oppY, collinear);
+
+    if (abs(collinear) < 500){
+        return True;
+    }
+    else{
+        return False;
+    }
 }
