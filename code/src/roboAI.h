@@ -157,4 +157,6 @@ void penalty_align(struct RoboAI *ai, struct blob *blobs, void *state);
 void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state);
 void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state);
 
+void soccer_start(struct RoboAI *ai, struct blob *blobs, void *state);
+
 #endif
