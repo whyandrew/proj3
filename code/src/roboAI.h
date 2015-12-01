@@ -91,6 +91,11 @@ struct AI_data{
 	
 	// Kicking
 	clock_t kick_begin;
+
+	// Chasing
+    double chase_pivot_start_angle;
+    double chase_pivot_target_angle;
+    int chase_pivot_isLeft; // 1 for left, 0 for right
 };
 
 struct RoboAI {
@@ -158,5 +163,12 @@ void penalty_approach(struct RoboAI *ai, struct blob *blobs, void *state);
 void penalty_kick(struct RoboAI *ai, struct blob *blobs, void *state);
 
 void soccer_start(struct RoboAI *ai, struct blob *blobs, void *state);
+
+void chase_start(struct RoboAI *ai, struct blob *blobs, void *state);
+void chase_lostBall(struct RoboAI *ai, struct blob *blobs, void *state);
+void chase_chaseBall(struct RoboAI *ai, struct blob *blobs, void *state);
+void chase_kickBall(struct RoboAI *ai, struct blob *blobs, void *state);
+void chase_pivot(struct RoboAI *ai, struct blob *blobs, void *state);
+void estimate_ball_pos(struct RoboAI *ai, struct blob * blobs, double *pos);
 
 #endif

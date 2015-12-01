@@ -535,6 +535,18 @@ void AI_main(struct RoboAI *ai, struct blob *blobs, void *state)
         case 105:
             break; // Final penalty state, nothing to do
 
+        case 201:
+            chase_start(ai, blobs, state);
+            break;
+        case 202:
+            chase_lostBall(ai, blobs, state);
+            break;
+        case 203:
+            chase_chaseBall(ai, blobs, state);
+            break;
+        case 204:
+            chase_kickBall(ai, blobs, state);
+            break;
         }
     }
 
@@ -1178,3 +1190,275 @@ Bool is_collinear(double goalX,double goalY, double ballX, double ballY, double 
         return False;
     }
 }
+
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+//                          Start CHASE Ball
+//////////////////////////////////////////////////////////////////////////////
+
+void chase_start(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          201
+//  Start of chase AI
+/////////////////////////////////////////////////////////////////////////////
+    if (ai->st.ballID)
+    {
+        ai->st.prev_angle_error = 0;
+        ai->st.state = 203; // Go after ball
+    }
+    else
+    {
+        //ai->st.state = 202; // no ball or lost track of ball
+    }
+}
+
+void chase_lostBall(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          202
+//  When ball blob not detected
+/////////////////////////////////////////////////////////////////////////////
+
+    // ok maybe don't need this state
+
+}
+
+void chase_chaseBall(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          203
+//  Go after ball
+/////////////////////////////////////////////////////////////////////////////
+
+    if (ai->st.selfID && ai->st.ballID)
+    {
+        const double k_P = 4;
+        const double MAX_P = 1.2;
+        const double MAX_MOTOR_SPEED = 80;
+        int left_speed = MAX_MOTOR_SPEED; 
+        int right_speed = MAX_MOTOR_SPEED;
+        const double dist_kicker_offset = 100.0; // dist from kicker to bot center
+        const double dist_scoop_offset = 200.0; // dist from scoop to bot center
+        const double dist_scoop_width = 200.0; // width of scoop opening
+        double scoop_pos[2];
+        double furture_ball_pos[2];
+        double vect_bot_ball[3]; // from bot to ball, x, y, rad.angle
+        double angle_bot; // current robot heading angle (not velocity angle)
+        double angle_error;
+
+        //calculate center pos of scoop opening
+        scoop_pos[0] += (dist_scoop_offset * ai->st.smx);
+        scoop_pos[1] += (dist_scoop_offset * ai->st.smy);
+
+        if (scoop_pos[0] < 0)
+            scoop_pos[0] = 0;
+        if (scoop_pos[0] > 1024)
+            scoop_pos[0] = 1024;
+
+        if (scoop_pos[1] < 0)
+            scoop_pos[1] = 0;
+        if (scoop_pos[1] > 768)
+            scoop_pos[1] = 768;
+        
+        // get vector from bot to future ball
+        estimate_ball_pos(ai, blobs, furture_ball_pos);
+        //vect_bot_ball[0] = ai->st.ball->cx - scoop_pos[0];
+        //vect_bot_ball[1] = ai->st.ball->cy - scoop_pos[1];
+        vect_bot_ball[0] = ai->st.ball->cx - (dist_kicker_offset * ai->st.smx);
+        vect_bot_ball[1] = ai->st.ball->cy - (dist_kicker_offset * ai->st.smy);
+        vect_bot_ball[2] = atan2(vect_bot_ball[1], vect_bot_ball[0]);
+        while (vect_bot_ball[2] >= PI)
+            vect_bot_ball[2] -= (2 * PI);
+
+        while (vect_bot_ball[2] < -PI)
+            vect_bot_ball[2] += (2 * PI);
+
+        angle_bot = atan2(ai->st.smy, ai->st.smx);
+        while (angle_bot >= PI)
+            angle_bot -= (2 * PI);
+
+        while (angle_bot < -PI)
+            angle_bot += (2 * PI);
+
+        angle_error = vect_bot_ball[2] - angle_bot;
+
+        while (angle_error >= PI)
+            angle_error -= 2 * PI;
+        while (angle_error < -PI)
+            angle_error += 2 * PI;
+
+        // If angle error is >= 90, just do a 90 degree pivot first
+        if (angle_error > PI / 2)
+        {
+            ai->st.chase_pivot_start_angle = angle_bot;
+            ai->st.chase_pivot_target_angle = angle_bot + PI/2;
+            while (ai->st.chase_pivot_target_angle >= PI)
+                ai->st.chase_pivot_target_angle -= 2 * PI;
+
+            ai->st.chase_pivot_isLeft = 1;
+            ai->st.state = 205;
+            return; //************* P I V O T *************//
+        }
+        else if (angle_error < -PI /2)
+        {
+            ai->st.chase_pivot_start_angle = angle_bot;
+            ai->st.chase_pivot_target_angle = angle_bot - PI/2;
+            while (ai->st.chase_pivot_target_angle < -PI)
+                ai->st.chase_pivot_target_angle += 2 * PI;
+
+            ai->st.chase_pivot_isLeft = 0;
+            ai->st.state = 205;
+            return; //************* P I V O T *************//
+        }
+
+        // <90 degree angle change, just turns
+        if (angle_error > PI / 8)
+        {
+            //printf("Pivoting left: angle error %f\n", angle_error * 180 / PI);
+            drive_custom (20, 80);
+            return;
+        }
+        else if (angle_error < -PI / 8)
+        {
+            //printf("Pivoting right: angle error %f\n", angle_error * 180 / PI);
+            drive_custom (80, 20);
+            return;
+        }
+
+        // decide how much to turn       
+        ai->st.motor_power = k_P * angle_error;
+
+        ai->st.motor_power = fmax(-MAX_MOTOR_SPEED, ai->st.motor_power);
+        ai->st.motor_power = fmin(MAX_MOTOR_SPEED, ai->st.motor_power);
+
+        if (ai->st.motor_power < 0)      // Need counterclockwise heading adjustment
+        {
+            right_speed += ai->st.motor_power * 0.8;
+        }
+        else // Need clockwise heading adjustment
+        {
+            left_speed -= ai->st.motor_power * 0.8;
+        }
+        
+        drive_custom (left_speed, right_speed);
+
+    }
+    else // no ball or lost track of it
+    {
+        ai->st.state = 201; // no ball or lost track of ball
+    }
+
+}
+
+void chase_kickBall(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          204
+//  Kick the ball
+/////////////////////////////////////////////////////////////////////////////
+    clock_t curr_time = clock();
+    printf("Time since kick start:%f\n", 1.0 * difftime(curr_time, ai->st.kick_begin));
+    printf("Ball velocity:%f, %f\n", ai->st.bvx, ai->st.bvy);
+
+    if (difftime(curr_time, ai->st.kick_begin)/1e6 < 0.2)
+    {
+        printf("Kicking\n");
+        kick_speed(100);
+    }
+    else if (difftime(curr_time, ai->st.kick_begin) / 1e6 < 1.5)
+    {
+        printf("Retracting\n");
+        retract_speed(20);
+    }
+    else
+    {
+        kick_speed(0);
+        all_stop();
+        exit(0);
+    }
+}
+
+
+void chase_pivot(struct RoboAI *ai, struct blob *blobs, void *state)
+{
+/////////////////////////////////////////////////////////////////////////////
+//                          205
+//  Pivot 90 degree left or right quickly, temperarily ignore other stuffs...
+/////////////////////////////////////////////////////////////////////////////
+    double angle_bot; // current robot heading angle (not velocity angle)
+
+    angle_bot = atan2(ai->st.smy, ai->st.smx);
+    while (angle_bot >= PI)
+        angle_bot -= (2 * PI);
+
+    while (angle_bot <= -PI)
+        angle_bot += (2 * PI);
+
+    if (ai->st.chase_pivot_isLeft) // turning left
+    {
+        if (angle_bot > ai->st.chase_pivot_target_angle)
+        {
+            //pivot_left();
+            drive_custom(20, 100);
+        }
+        else
+        {
+            ai->st.state = 203; //done pivot
+        }
+    }
+    else // chase_pivot_isLeft == 0, turning right
+    {
+        if (angle_bot < ai->st.chase_pivot_target_angle)
+        {
+            //pivot_right();
+            drive_custom(100, 20);
+        }
+        else
+        {
+            ai->st.state = 203; //done pivot
+        }
+    }
+}
+
+// Given all blobs, guess what the ball will be at intersection with bot
+// Need to check for wall...
+void estimate_ball_pos(struct RoboAI *ai, struct blob * blobs, double *pos)
+{
+    // estimate future ball pos = 
+    //  curr_pos + ball_vel * (dist_bot_ball / vel_bot)
+    
+    // Estimate x,y coordinates separately
+    pos[0] = ai->st.ball->cx + 
+            (ai->st.bvx * fabs(ai->st.ball->cx - ai->st.self->cx) / ai->st.svx);
+    pos[1] = ai->st.ball->cy + 
+            (ai->st.bvy * fabs(ai->st.ball->cy - ai->st.self->cy) / ai->st.svy);
+    // Check for wall, reflect back
+    if (pos[0] < 0.0)
+    {
+        pos[0] = -pos[0];
+    }
+    if (pos[1] < 0.0)
+    {
+        pos[1] = -pos[1];
+    }
+    
+    if (pos[0] > 1024.0)
+    {
+        pos[0] = 1024 - (pos[0] - 1024);
+    }
+    if (pos[1] > 768.0)
+    {
+        pos[1] = 768 - (pos[1] - 768);
+    }
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//                          END  CHASE Ball functions
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
